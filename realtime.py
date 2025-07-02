@@ -15,6 +15,17 @@ import websocket
 # Set up SOCKS5 proxy
 socket.socket = socks.socksocket
 
+CHUNK_SIZE = 1024
+RATE = 24000
+FORMAT = pyaudio.paInt16
+
+# Use the provided OpenAI API key and URL
+API_KEY = ""
+if not API_KEY:
+    raise ValueError("API key is missing. Please set the 'OPENAI_API_KEY' environment variable.")
+
+WS_URL = 'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2025-06-03'
+
 SYSTEM_PROMPT = """Your knowledge cutoff is 2023-10-30.
 
 You are the McRouter AI, a real-time conversational model for customer service of the McRouter Internet Service Provider.
@@ -145,17 +156,9 @@ SESSION_CONFIG = {
     }
 }
 
-
-# Use the provided OpenAI API key and URL
-API_KEY = ""
-if not API_KEY:
-    raise ValueError("API key is missing. Please set the 'OPENAI_API_KEY' environment variable.")
-
-WS_URL = 'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2025-06-03'
-
-CHUNK_SIZE = 1024
-RATE = 24000
-FORMAT = pyaudio.paInt16
+# Recording configuration
+RECORDING_ENABLED = True
+RECORDINGS_DIR = "recordings"
 
 audio_buffer = bytearray()
 mic_queue = queue.Queue()
@@ -166,12 +169,6 @@ mic_on_at = 0
 mic_active = None
 REENGAGE_DELAY_MS = 500
 
-# Recording configuration
-ENABLE_RECORDING = True  # Set to False to disable call recording
-RECORDINGS_DIR = "recordings"  # Directory where recordings will be saved
-
-# Recording variables
-recording_enabled = ENABLE_RECORDING
 user_audio_frames = []
 ai_audio_frames = []
 recording_lock = threading.Lock()
@@ -198,7 +195,7 @@ def mic_callback(in_data, frame_count, time_info, status):
         mic_active = True
 
     # Record user audio if recording is enabled
-    if recording_enabled:
+    if RECORDING_ENABLED:
         with recording_lock:
             user_audio_frames.append(in_data)
 
@@ -249,7 +246,7 @@ def speaker_callback(in_data, frame_count, time_info, status):
         mic_on_at = time.time() + REENGAGE_DELAY_MS / 1000
 
         # Record AI audio if recording is enabled
-        if recording_enabled:
+        if RECORDING_ENABLED:
             with recording_lock:
                 ai_audio_frames.append(audio_chunk)
     else:
@@ -257,7 +254,7 @@ def speaker_callback(in_data, frame_count, time_info, status):
         audio_buffer.clear()
 
         # Record AI audio (including silence padding) if recording is enabled
-        if recording_enabled and len(audio_buffer) > 0:
+        if RECORDING_ENABLED and len(audio_buffer) > 0:
             with recording_lock:
                 ai_audio_frames.append(bytes(audio_buffer))
 
@@ -512,7 +509,7 @@ def main():
 
     finally:
         # Save recording before closing
-        if recording_enabled:
+        if RECORDING_ENABLED:
             print('💾 Saving call recording...')
             save_recording()
 
@@ -528,7 +525,7 @@ def main():
 def save_recording():
     global user_audio_frames, ai_audio_frames, call_start_time
 
-    if not recording_enabled or not call_start_time:
+    if not RECORDING_ENABLED or not call_start_time:
         return
 
     timestamp = call_start_time.strftime("%Y%m%d_%H%M%S")
