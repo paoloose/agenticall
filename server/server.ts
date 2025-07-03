@@ -18,18 +18,37 @@ const server = Bun.serve({
     cert: Bun.file(CERT_PATH),
   },
   fetch(req, server) {
+    // Set CORS headers for all responses
+    const headers = {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      // Allow connections from any origin to the WebSocket server
+      "Content-Security-Policy": "default-src 'self'; connect-src *;"
+    };
+
+    // Handle OPTIONS requests (CORS preflight)
+    if (req.method === "OPTIONS") {
+      return new Response(null, { headers });
+    }
+
     // Upgrade HTTP connection to WebSocket
     const success = server.upgrade(req, {
       data: {
         id: crypto.randomUUID()
-      }
+      },
+      headers // Add headers to the WebSocket upgrade response
     });
 
     if (success) {
       return undefined;
     }
 
-    return new Response("WebSocket upgrade failed", { status: 400 });
+    // If not a WebSocket request, return a standard response with CORS headers
+    return new Response("WebSocket endpoint", {
+      status: 200,
+      headers
+    });
   },
   websocket: {
     open(ws) {
@@ -62,7 +81,7 @@ const server = Bun.serve({
 });
 
 console.log(`WebSocket broadcast server running on port ${server.port} with HTTPS`);
-console.log(`Connect to: wss://0.0.0.0:${server.port}`);
+console.log(`Connect to: wss://mcrouter.paoloose.site:${server.port}`);
 console.log(`For local connections use: wss://localhost:${server.port}`);
 console.log(`Certificate path: ${CERT_PATH}`);
 console.log(`Private key path: ${KEY_PATH}`);

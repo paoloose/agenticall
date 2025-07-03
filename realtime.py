@@ -13,19 +13,20 @@ import pyaudio
 import socks
 import websocket
 
+from config import OPENAI_API_KEY
 from rag import RAGPromptAugmenter
 
 # Set up SOCKS5 proxy
 socket.socket = socks.socksocket
 
+# WebSocket for call tracing
+TRACING_WS_URL = 'wss://mcrouter.paoloose.site:5060'
+tracing_ws = None
+tracing_ws_lock = threading.Lock()
+
 CHUNK_SIZE = 1024
 RATE = 24000
 FORMAT = pyaudio.paInt16
-
-# Use the provided OpenAI API key and URL
-API_KEY = ""
-if not API_KEY:
-    raise ValueError("API key is missing. Please set the 'OPENAI_API_KEY' environment variable.")
 
 WS_URL = 'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2025-06-03'
 
@@ -197,27 +198,79 @@ prompt_augmenter = RAGPromptAugmenter(data_dir='documents')
 # Function to add message to transcript
 def add_message_to_transcript(role, message, function_name=None, call_id=None, params=None):
     global transcript_messages, call_start_time
-    
+
     # Calculate time elapsed since call start in seconds
     elapsed_time = int((datetime.now() - call_start_time).total_seconds())
-    
+
     if function_name:
         # This is a function call
-        transcript_messages.append({
+        transcript_msg = {
             "type": "function_call",
             "function": function_name,
             "call_id": call_id,
             "params": params,
             "time": elapsed_time
-        })
+        }
+        transcript_messages.append(transcript_msg)
+        # Send to tracing WebSocket
+        send_to_tracing_ws(transcript_msg)
     else:
         # This is a regular message
-        transcript_messages.append({
+        transcript_msg = {
             "type": "message",
             "role": role,
             "message": message,
             "time": elapsed_time
-        })
+        }
+        transcript_messages.append(transcript_msg)
+        # Send to tracing WebSocket
+        send_to_tracing_ws(transcript_msg)
+
+# Function to send events to tracing WebSocket
+def send_to_tracing_ws(data):
+    global tracing_ws
+
+    try:
+        with tracing_ws_lock:
+            if tracing_ws and tracing_ws.connected:
+                tracing_ws.send(json.dumps(data))
+                print(f"🌐 Event sent to tracing server: {data['type']}")
+            elif tracing_ws:
+                # Try to reconnect if the connection was lost
+                print("⚠️ Tracing connection lost. Attempting to reconnect...")
+                if connect_to_tracing_server():
+                    # If reconnection succeeds, send the data
+                    tracing_ws.send(json.dumps(data))
+                    print(f"🌐 Event sent to tracing server after reconnection: {data['type']}")
+    except Exception as e:
+        print(f"⚠️ Error sending event to tracing server: {e}")
+
+# Function to send call start event
+def send_call_start_event():
+    global call_id, call_start_time
+
+    start_event = {
+        "type": "call_start",
+        "id": call_id,
+        "date": call_start_time.strftime("%Y-%m-%d"),
+        "time": call_start_time.strftime("%H:%M:%S")
+    }
+    send_to_tracing_ws(start_event)
+    print(f"🌐 Call start event sent to tracing server")
+
+# Function to send call end event
+def send_call_end_event():
+    global call_id, call_start_time
+
+    duration = int((datetime.now() - call_start_time).total_seconds())
+    end_event = {
+        "type": "call_end",
+        "id": call_id,
+        "duration": duration,
+        "time": datetime.now().strftime("%H:%M:%S")
+    }
+    send_to_tracing_ws(end_event)
+    print(f"🌐 Call end event sent to tracing server")
 
 # Function to clear the audio buffer
 def clear_audio_buffer():
@@ -366,6 +419,33 @@ def receive_audio_from_websocket(ws):
         print('Exiting receive_audio_from_websocket thread.')
 
 
+# Function to establish connection with the tracing WebSocket server
+def connect_to_tracing_server():
+    global tracing_ws
+
+    try:
+        tracing_ws = create_connection_with_ipv4(
+            TRACING_WS_URL,
+            header=[]
+        )
+        print('🌐 Connected to tracing WebSocket server.')
+        return True
+    except Exception as e:
+        print(f'⚠️ Failed to connect to tracing server: {e}')
+        return False
+
+# Function to close the tracing WebSocket connection
+def close_tracing_connection():
+    global tracing_ws
+
+    try:
+        if tracing_ws:
+            send_call_end_event()
+            tracing_ws.close()
+            print('🌐 Tracing WebSocket connection closed.')
+    except Exception as e:
+        print(f'⚠️ Error closing tracing WebSocket connection: {e}')
+
 # Function to handle function calls
 def handle_function_call(event_json, ws):
     try:
@@ -394,6 +474,7 @@ def handle_function_call(event_json, ws):
             # Handle hang up function call
             print("Call ended by user or AI.")
             send_function_call_result("Call ended successfully.", call_id, ws)
+            # This will already be sent via the transcript handler, so we don't need to send it again
             stop_event.set()  # Stop the main loop to end the call
 
         elif name == "forward_call":
@@ -502,7 +583,7 @@ def connect_to_openai():
         ws = create_connection_with_ipv4(
             WS_URL,
             header=[
-                f'Authorization: Bearer {API_KEY}',
+                f'Authorization: Bearer {OPENAI_API_KEY}',
                 'OpenAI-Beta: realtime=v1'
             ]
         )
@@ -546,9 +627,14 @@ def main():
     call_id = f"call_mcrouter_{call_start_time.strftime('%Y%m%d')}_{str(uuid.uuid4())[:8]}"
     # Reset transcript messages
     transcript_messages = []
-    
+
     print(f'🎬 Call recording started at: {call_start_time.strftime("%Y-%m-%d %H:%M:%S")}')
     print(f'🆔 Call ID: {call_id}')
+
+    # Connect to tracing server
+    if connect_to_tracing_server():
+        # Send call start event
+        send_call_start_event()
 
     p = pyaudio.PyAudio()
 
@@ -584,6 +670,9 @@ def main():
         stop_event.set()
 
     finally:
+        # Close the tracing connection
+        close_tracing_connection()
+
         # Save recording before closing
         if RECORDING_ENABLED:
             print('💾 Saving call recording...')
@@ -645,7 +734,7 @@ def save_recording():
             f.write("Note: Audio files are saved separately. You can use audio editing software to combine them if needed.\n")
 
         print(f'📝 Recording info saved to: {transcript_filename}')
-        
+
         # Save JSON transcript
         json_transcript = {
             "id": call_id,
@@ -653,11 +742,17 @@ def save_recording():
             "duration": call_duration,
             "messages": transcript_messages
         }
-        
+
+        # Send the full transcript to the tracing server
+        send_to_tracing_ws({
+            "type": "transcript_summary",
+            "data": json_transcript
+        })
+
         json_transcript_filename = os.path.join(recordings_dir, f"transcript_{call_id}.json")
         with open(json_transcript_filename, 'w', encoding='utf-8') as f:
             json.dump(json_transcript, f, ensure_ascii=False, indent=2)
-            
+
         print(f'📝 JSON transcript saved to: {json_transcript_filename}')
 
 
