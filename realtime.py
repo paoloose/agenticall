@@ -20,7 +20,7 @@ from rag import RAGPromptAugmenter
 socket.socket = socks.socksocket
 
 # WebSocket for call tracing
-TRACING_WS_URL = 'wss://mcrouter.paoloose.site:5060'
+TRACING_WS_URL = 'wss://mcrouter.paoloose.site:6060'
 tracing_ws = None
 tracing_ws_lock = threading.Lock()
 
@@ -111,7 +111,7 @@ SESSION_CONFIG = {
         "type": "server_vad",
         "threshold": 0.5,
         "prefix_padding_ms": 300,
-        "silence_duration_ms": 500
+        "silence_duration_ms": 1000,
     },
     "voice": "sage",
     "temperature": 1,
@@ -196,8 +196,8 @@ call_id = None
 prompt_augmenter = RAGPromptAugmenter(data_dir='documents')
 
 # Function to add message to transcript
-def add_message_to_transcript(role, message, function_name=None, call_id=None, params=None):
-    global transcript_messages, call_start_time
+def add_message_to_transcript(role, message, function_name=None, function_call_id=None, params=None):
+    global transcript_messages, call_start_time, call_id
 
     # Calculate time elapsed since call start in seconds
     elapsed_time = int((datetime.now() - call_start_time).total_seconds())
@@ -207,7 +207,8 @@ def add_message_to_transcript(role, message, function_name=None, call_id=None, p
         transcript_msg = {
             "type": "function_call",
             "function": function_name,
-            "call_id": call_id,
+            "call_id": function_call_id,
+            "context_id": call_id,  # Add global call_id as context_id
             "params": params,
             "time": elapsed_time
         }
@@ -220,6 +221,7 @@ def add_message_to_transcript(role, message, function_name=None, call_id=None, p
             "type": "message",
             "role": role,
             "message": message,
+            "context_id": call_id,  # Add global call_id as context_id
             "time": elapsed_time
         }
         transcript_messages.append(transcript_msg)
@@ -228,9 +230,13 @@ def add_message_to_transcript(role, message, function_name=None, call_id=None, p
 
 # Function to send events to tracing WebSocket
 def send_to_tracing_ws(data):
-    global tracing_ws
+    global tracing_ws, call_id
 
     try:
+        # Add context_id to every message if not already present
+        if "context_id" not in data and call_id is not None:
+            data["context_id"] = call_id
+
         with tracing_ws_lock:
             if tracing_ws and tracing_ws.connected:
                 tracing_ws.send(json.dumps(data))
@@ -252,6 +258,7 @@ def send_call_start_event():
     start_event = {
         "type": "call_start",
         "id": call_id,
+        "context_id": call_id,  # Add context_id matching the call_id
         "date": call_start_time.strftime("%Y-%m-%d"),
         "time": call_start_time.strftime("%H:%M:%S")
     }
@@ -266,6 +273,7 @@ def send_call_end_event():
     end_event = {
         "type": "call_end",
         "id": call_id,
+        "context_id": call_id,  # Add context_id matching the call_id
         "duration": duration,
         "time": datetime.now().strftime("%H:%M:%S")
     }
@@ -446,6 +454,26 @@ def close_tracing_connection():
     except Exception as e:
         print(f'⚠️ Error closing tracing WebSocket connection: {e}')
 
+# Function to add function call output to transcript
+def add_function_call_output_to_transcript(output, function_call_id):
+    global transcript_messages, call_start_time, call_id
+
+    # Calculate time elapsed since call start in seconds
+    elapsed_time = int((datetime.now() - call_start_time).total_seconds())
+
+    # Create function call output message
+    transcript_msg = {
+        "type": "function_call_output",
+        "output": output,
+        "call_id": function_call_id,
+        "context_id": call_id,
+        "time": elapsed_time
+    }
+
+    transcript_messages.append(transcript_msg)
+    # Send to tracing WebSocket
+    send_to_tracing_ws(transcript_msg)
+
 # Function to handle function calls
 def handle_function_call(event_json, ws):
     try:
@@ -461,14 +489,14 @@ def handle_function_call(event_json, ws):
                 "specialty": function_call_args.get("specialty", ""),
                 "summary": function_call_args.get("summary", "")
             }
-            add_message_to_transcript(None, None, name, call_id, params)
+            add_message_to_transcript(None, None, name, function_call_id=call_id, params=params)
         elif name == "ask_rag":
             params = {
                 "question": function_call_args.get("question", "")
             }
-            add_message_to_transcript(None, None, name, call_id, params)
+            add_message_to_transcript(None, None, name, function_call_id=call_id, params=params)
         elif name == "hang_up":
-            add_message_to_transcript(None, None, name, call_id, {})
+            add_message_to_transcript(None, None, name, function_call_id=call_id, params={})
 
         if name == "hang_up":
             # Handle hang up function call
@@ -524,7 +552,7 @@ def send_function_call_result(result, call_id, ws):
     }
 
     # Add function call result to transcript
-    add_message_to_transcript("system", result)
+    add_function_call_output_to_transcript(result, call_id)
 
     # Convert the result to a JSON string and send it via WebSocket
     try:
@@ -746,6 +774,7 @@ def save_recording():
         # Send the full transcript to the tracing server
         send_to_tracing_ws({
             "type": "transcript_summary",
+            "context_id": call_id,
             "data": json_transcript
         })
 
