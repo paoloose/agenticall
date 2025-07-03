@@ -517,7 +517,7 @@ def handle_function_call(event_json, ws):
             # Extract the call_id from the event JSON
             # If the specialty is provided, call forward_call and send the result
             if specialty and summary:
-                result = f"Call forwarded to {specialty} with summary: {summary}"
+                result = f"Call forwarded to {specialty}. Estimated Wait Time: 2 minutes."
                 send_function_call_result(result, call_id, ws)
             else:
                 print("Specialty or summary not provided for forward_call function.")

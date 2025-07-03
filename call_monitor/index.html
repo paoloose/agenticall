@@ -13,7 +13,7 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #586cc2 0%, #563675 100%);
+            background: linear-gradient(135deg, #2e2b30 0%, #111111 100%);
             min-height: 100vh;
             color: #333;
         }
@@ -359,6 +359,56 @@
             animation: slideIn 0.5s ease-out;
         }
 
+        /* Output preview styles */
+        .output-preview {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .output-short {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+            color: #333;
+        }
+
+        .output-full {
+            display: none;
+            background: #f8f9fa;
+            padding: 10px;
+            margin-top: 8px;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            color: #333;
+        }
+
+        .toggle-output {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            margin-top: 5px;
+            cursor: pointer;
+            font-size: 0.8em;
+            font-weight: bold;
+            transition: all 0.2s ease;
+        }
+
+        .toggle-output:hover {
+            background: #5a6bce;
+            transform: translateY(-1px);
+        }
+
+        .output-preview.expanded .output-full {
+            display: block;
+        }
+
         @keyframes slideIn {
             from {
                 opacity: 0;
@@ -637,9 +687,17 @@
                     return `Llamando función: ${event.function}`;
                 }
                 if (event.type === 'function_call_output') {
-                    return event.output.length > 200 ?
-                        event.output.substring(0, 200) + '...' :
-                        event.output;
+                    if (event.output.length > 200) {
+                        return `
+                            <div class="output-preview">
+                                <div class="output-short">${event.output.substring(0, 200)}...</div>
+                                <button class="toggle-output" onclick="toggleOutput(this)">Ver más</button>
+                                <div class="output-full">${event.output}</div>
+                            </div>
+                        `;
+                    } else {
+                        return event.output;
+                    }
                 }
                 if (event.type === 'call_start') {
                     return 'Llamada iniciada';
@@ -699,6 +757,13 @@
 
         // Initialize the monitor when the page loads
         document.addEventListener('DOMContentLoaded', () => {
+            // Global function to toggle output visibility
+            window.toggleOutput = function(button) {
+                const preview = button.parentNode;
+                preview.classList.toggle('expanded');
+                button.textContent = preview.classList.contains('expanded') ? 'Ver menos' : 'Ver más';
+            };
+            
             new CallMonitor();
         });
     </script>
