@@ -1,8 +1,9 @@
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain_openai import OpenAIEmbeddings
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_core.documents import Document
+from langchain_core.messages import HumanMessage, SystemMessage
 
 import getpass
 import os
@@ -14,40 +15,39 @@ if not OPENAI_API_KEY:
 #os.environ["LANGSMITH_TRACING"] = "true"
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 
-class PromptAugmenter:
+class RAGPromptAugmenter:
     def __init__(self, data_dir: str, db_path: str = "local_index"):
         self.data_dir = data_dir
         self.db_path = db_path
-        self.embeddings = OpenAIEmbeddings()
+        self.embeddings = OpenAIEmbeddings(
+            model="text-embedding-3-large",
+            api_key=OPENAI_API_KEY,
+        )
+        self.rag_validator = ChatOpenAI(
+            model="gpt-3.5-turbo",
+            temperature=0.0,
+            api_key=OPENAI_API_KEY,
+        )
         self.vector_store = self.load_or_create_vector_store()
-        self.retriever = self.setup_retriever()
+        self.retriever = self.vector_store.as_retriever()
 
     def load_or_create_vector_store(self):
-        if os.path.exists(self.db_path):
-            print("Loading existing vector store...")
-            return FAISS.load_local(
-                self.db_path,
-                self.embeddings,
-                allow_dangerous_deserialization=True,
-            )
-        else:
-            print("Creating new vector store...")
-            documents = self.load_documents()
-            text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
-                chunk_size=1000,
-                chunk_overlap=200,
-            )
-            texts = text_splitter.split_documents(documents)
-            # SKLearnVectorStore
-            # FAISS
-            # ChromaDB
-            vector_store = FAISS.from_documents(texts, self.embeddings)
-            vector_store.save_local(self.db_path)
-            return vector_store
+        # <https://python.langchain.com/api_reference/text_splitters/character/langchain_text_splitters.character.RecursiveCharacterTextSplitter.html>
+        # <https://github.com/facebookresearch/faiss>
+        print("Initializing vector store and generating document embeddings...")
+        documents = self.load_documents()
+        text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+            chunk_size=2000,
+            chunk_overlap=200,
+        )
+        texts = text_splitter.split_documents(documents)
+        vector_store = FAISS.from_documents(texts, self.embeddings)
+        vector_store.save_local(self.db_path)
+        return vector_store
 
     def load_documents(self) -> list[Document]:
         # <https://python.langchain.com/docs/how_to/document_loader_pdf/>
-        print("Loading PDF files...")
+        print("Loading PDF files for embedding generation...")
         documents = []
         for file in os.listdir(self.data_dir):
             if not file.endswith(".pdf"):
@@ -57,14 +57,58 @@ class PromptAugmenter:
             documents.extend(loader.load())
         return documents
 
-    def setup_retriever(self):
-        print("Setting up retriever...")
-        return self.vector_store.as_retriever()
+    def validate_relevance(self, question: str, retrieved_docs: list[Document]) -> bool:
+        """
+        Validate if the retrieved documents are relevant to the user's question.
+        Returns True if relevant, False otherwise.
+        """
+        # Create a summary of the retrieved documents
+        context_summary = "\n".join([doc.page_content for doc in retrieved_docs])
+
+        validation_prompt = f"""You are a relevance validator. Your task is to determine if the provided context is relevant to answer the user's question.
+
+<question>
+{question}
+</question>
+
+<context>
+{context_summary}
+</context>
+
+<instruction>
+- Answer ONLY with "YES" if the context contains information that can help answer the question
+- Answer ONLY with "NO" if the context does not contain relevant information to answer the question
+- Be strict in your evaluation - if the context is only tangentially related, answer "NO"
+</instructions>
+
+Response:"""
+
+        try:
+            response = self.rag_validator.invoke(
+                input=[
+                    SystemMessage("You are a relevance validator that responds only with YES or NO."),
+                    HumanMessage(validation_prompt),
+                ],
+            )
+            answer = response.content
+            return answer.upper().strip() == "YES"
+
+        except Exception as e:
+            print(f"Error in relevance validation: {e}")
+            # If validation fails, default to returning the context
+            return True
 
     def query(self, question: str) -> tuple[str, list[Document]]:
-        print("Processing query...")
+        print("Processing query with semantic similarity search...")
         # Retrieve relevant documents
         relevant_docs = self.retriever.invoke(question)
+
+        # Validate if the retrieved documents are relevant
+        is_relevant = self.validate_relevance(question, relevant_docs)
+
+        if not is_relevant:
+            print("Retrieved documents are not relevant to the question.")
+            return "No hay información disponible para la consulta", relevant_docs
 
         # Create context from retrieved documents
         context = "\n\n".join([doc.page_content for doc in relevant_docs])
@@ -92,7 +136,7 @@ Answer:"""
 def main():
     data_dir = "documents"
 
-    rag = PromptAugmenter(data_dir)
+    rag = RAGPromptAugmenter(data_dir)
 
     print("Ready to generate augmented prompts. Type 'quit' to exit.")
     while True:
