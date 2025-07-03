@@ -1,3 +1,9 @@
 pyaudio
 pysocks
 websocket-client
+langchain
+langchain-openai
+langchain-community
+faiss-cpu
+pypdf
+openai
