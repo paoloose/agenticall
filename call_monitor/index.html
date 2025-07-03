@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>McRouter Call Monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #586cc2 0%, #563675 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            border-bottom: 3px solid #4CAF50;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .connection-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: #f8f9fa;
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 2px solid #dee2e6;
+            margin-top: 10px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #dc3545;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.connected {
+            background: #28a745;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .calls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .call-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .call-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .call-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f1f3f4;
+        }
+
+        .call-id {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #2c3e50;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .call-time {
+            color: #666;
+            font-size: 0.9em;
+            background: #f8f9fa;
+            padding: 4px 8px;
+            border-radius: 10px;
+        }
+
+        .call-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-left: 10px;
+        }
+
+        .call-status.active {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .call-status.ended {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .events-list {
+            max-height: 400px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #667eea #f1f3f4;
+        }
+
+        .events-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .events-list::-webkit-scrollbar-track {
+            background: #f1f3f4;
+            border-radius: 3px;
+        }
+
+        .events-list::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 3px;
+        }
+
+        .event-item {
+            margin-bottom: 15px;
+            padding: 12px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+            background: #f8f9fa;
+            transition: all 0.3s ease;
+        }
+
+        .event-item:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+        }
+
+        .event-item.system {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+
+        .event-item.user {
+            border-left-color: #007bff;
+            background: #d1ecf1;
+        }
+
+        .event-item.function {
+            border-left-color: #ffc107;
+            background: #fff3cd;
+        }
+
+        .event-item.error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+
+        .event-item.call-end {
+            border-left-color: #6f42c1;
+            background: linear-gradient(135deg, #e8d5ff 0%, #f3e8ff 100%);
+            border: 2px solid #6f42c1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .event-item.call-end::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, transparent 40%, rgba(111, 66, 193, 0.1) 50%, transparent 60%);
+            animation: shimmer 2s infinite;
+        }
+
+        .event-item.transcript {
+            border-left-color: #17a2b8;
+            background: linear-gradient(135deg, #d1ecf1 0%, #e6f3ff 100%);
+            border: 2px solid #17a2b8;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .event-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .event-type {
+            font-size: 0.8em;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .event-type.system {
+            background: #28a745;
+            color: white;
+        }
+
+        .event-type.user {
+            background: #007bff;
+            color: white;
+        }
+
+        .event-type.function {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .event-type.call-end {
+            background: linear-gradient(135deg, #6f42c1, #9b59b6);
+            color: white;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(111, 66, 193, 0.3);
+        }
+
+        .event-type.transcript {
+            background: linear-gradient(135deg, #17a2b8, #20c997);
+            color: white;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(23, 162, 184, 0.3);
+        }
+
+        .event-time {
+            font-size: 0.8em;
+            color: #666;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 2px 6px;
+            border-radius: 8px;
+        }
+
+        .event-content {
+            font-size: 0.9em;
+            line-height: 1.4;
+            word-wrap: break-word;
+        }
+
+        .function-details {
+            margin-top: 8px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 6px;
+            font-size: 0.8em;
+        }
+
+        .no-calls {
+            text-align: center;
+            color: #666;
+            font-size: 1.2em;
+            margin-top: 50px;
+            padding: 40px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .stat-item {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 15px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-number {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.8em;
+            margin-top: 3px;
+        }
+
+        .transcript-content {
+            max-height: 300px;
+            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            border: 1px solid rgba(23, 162, 184, 0.3);
+        }
+
+        .transcript-content::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .transcript-content::-webkit-scrollbar-track {
+            background: #f1f3f4;
+            border-radius: 2px;
+        }
+
+        .transcript-content::-webkit-scrollbar-thumb {
+            background: #17a2b8;
+            border-radius: 2px;
+        }
+
+        .new-event {
+            animation: slideIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🌐 McRouter Call Monitor</h1>
+        <div class="connection-status">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Conectando...</span>
+        </div>
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-number" id="activeCalls">0</div>
+                <div class="stat-label">Llamadas Activas</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="totalCalls">0</div>
+                <div class="stat-label">Total de Llamadas</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="totalEvents">0</div>
+                <div class="stat-label">Eventos Totales</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="calls-grid" id="callsGrid">
+            <div class="no-calls" id="noCalls">
+                <h3>🔄 Esperando llamadas...</h3>
+                <p>El monitor está conectado y listo para recibir llamadas en tiempo real.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class CallMonitor {
+            constructor() {
+                this.calls = new Map();
+                this.socket = null;
+                this.reconnectAttempts = 0;
+                this.maxReconnectAttempts = 5;
+                this.reconnectDelay = 3000;
+                this.totalEvents = 0;
+                this.init();
+            }
+
+            init() {
+                this.connect();
+            }
+
+            connect() {
+                try {
+                    this.socket = new WebSocket('wss://mcrouter.paoloose.site:6060');
+
+                    this.socket.onopen = () => {
+                        console.log('Conectado al servidor WebSocket');
+                        this.updateConnectionStatus(true);
+                        this.reconnectAttempts = 0;
+                    };
+
+                    this.socket.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            this.handleEvent(data);
+                        } catch (error) {
+                            console.error('Error parsing message:', error);
+                        }
+                    };
+
+                    this.socket.onclose = () => {
+                        console.log('Conexión cerrada');
+                        this.updateConnectionStatus(false);
+                        this.attemptReconnect();
+                    };
+
+                    this.socket.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                        this.updateConnectionStatus(false);
+                    };
+
+                } catch (error) {
+                    console.error('Error creating WebSocket:', error);
+                    this.updateConnectionStatus(false);
+                    this.attemptReconnect();
+                }
+            }
+
+            attemptReconnect() {
+                if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                    this.reconnectAttempts++;
+                    console.log(`Intentando reconectar... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+
+                    setTimeout(() => {
+                        this.connect();
+                    }, this.reconnectDelay);
+                } else {
+                    console.error('Máximo número de intentos de reconexión alcanzado');
+                    document.getElementById('statusText').textContent = 'Error de conexión';
+                }
+            }
+
+            updateConnectionStatus(connected) {
+                const statusDot = document.getElementById('statusDot');
+                const statusText = document.getElementById('statusText');
+
+                if (connected) {
+                    statusDot.classList.add('connected');
+                    statusText.textContent = 'Conectado';
+                } else {
+                    statusDot.classList.remove('connected');
+                    statusText.textContent = 'Desconectado';
+                }
+            }
+
+            handleEvent(event) {
+                this.totalEvents++;
+                this.updateStats();
+
+                console.log(event);
+
+                if (event.type === 'call_start') {
+                    this.createCall(event);
+                } else if (event.context_id) {
+                    this.addEventToCall(event);
+                }
+            }
+
+            createCall(event) {
+                const call = {
+                    id: event.context_id,
+                    startTime: new Date(),
+                    date: event.date,
+                    time: event.time,
+                    events: [event],
+                    status: 'active'
+                };
+
+                this.calls.set(event.context_id, call);
+                this.renderCall(call);
+                this.updateStats();
+            }
+
+            addEventToCall(event) {
+                const call = this.calls.get(event.context_id);
+                if (call) {
+                    call.events.push(event);
+
+                    if (event.type === 'function_call' && event.function === 'hang_up') {
+                        call.status = 'ended';
+                    }
+
+                    if (event.type === 'call_end') {
+                        call.status = 'ended';
+                        call.duration = event.duration;
+                        call.endTime = event.time;
+                    }
+
+                    this.renderCall(call);
+                }
+            }
+
+            renderCall(call) {
+                const existingCard = document.getElementById(`call-${call.id}`);
+                if (existingCard) {
+                    existingCard.remove();
+                }
+
+                const noCalls = document.getElementById('noCalls');
+                if (noCalls) {
+                    noCalls.style.display = 'none';
+                }
+
+                const callCard = document.createElement('div');
+                callCard.className = 'call-card';
+                callCard.id = `call-${call.id}`;
+
+                const shortId = call.id.split('_').pop().substring(0, 8);
+                const durationText = call.duration ? ` (${Math.floor(call.duration / 60)}:${(call.duration % 60).toString().padStart(2, '0')})` : '';
+
+                callCard.innerHTML = `
+                    <div class="call-header">
+                        <div>
+                            <span class="call-id">${shortId}</span>
+                            <span class="call-status ${call.status}">${call.status === 'active' ? 'Activa' : 'Finalizada'}${durationText}</span>
+                        </div>
+                        <div class="call-time">
+                            ${call.date} ${call.time}${call.endTime ? ` - ${call.endTime}` : ''}
+                        </div>
+                    </div>
+                    <div class="events-list">
+                        ${call.events.map(event => this.renderEvent(event)).join('')}
+                    </div>
+                `;
+
+                document.getElementById('callsGrid').appendChild(callCard);
+
+                // Scroll to bottom of events list
+                const eventsList = callCard.querySelector('.events-list');
+                eventsList.scrollTop = eventsList.scrollHeight;
+            }
+
+            renderEvent(event) {
+                const eventClass = this.getEventClass(event);
+                const eventType = this.getEventType(event);
+                const eventContent = this.getEventContent(event);
+
+                let eventHtml = `
+                    <div class="event-item ${eventClass} new-event">
+                        <div class="event-header">
+                            <span class="event-type ${eventClass}">${eventType}</span>
+                            <span class="event-time">${event.time}s</span>
+                        </div>
+                        <div class="event-content">${eventContent}</div>
+                        ${this.renderFunctionDetails(event)}
+                `;
+
+                if (event.type === 'transcript_summary') {
+                    eventHtml += `<div class="transcript-content">${this.formatTranscript(event)}</div>`;
+                }
+
+                eventHtml += `</div>`;
+
+                return eventHtml;
+            }
+
+            getEventClass(event) {
+                if (event.type === 'message') {
+                    return event.role === 'system' ? 'system' : 'user';
+                }
+                if (event.type === 'function_call' || event.type === 'function_call_output') {
+                    return 'function';
+                }
+                if (event.type === 'call_end') {
+                    return 'call-end';
+                }
+                if (event.type === 'transcript_summary') {
+                    return 'transcript';
+                }
+                return 'system';
+            }
+
+            getEventType(event) {
+                if (event.type === 'message') {
+                    return event.role === 'system' ? '📞 Sistema' : '👤 Usuario';
+                }
+                if (event.type === 'function_call') {
+                    return `Función: ${event.function}`;
+                }
+                if (event.type === 'function_call_output') {
+                    return 'Resultado';
+                }
+                if (event.type === 'call_end') {
+                    return 'Llamada Finalizada';
+                }
+                if (event.type === 'transcript_summary') {
+                    return 'Resumen de Conversación';
+                }
+                return event.type;
+            }
+
+            getEventContent(event) {
+                if (event.type === 'message') {
+                    return event.message;
+                }
+                if (event.type === 'function_call') {
+                    return `Llamando función: ${event.function}`;
+                }
+                if (event.type === 'function_call_output') {
+                    return event.output.length > 200 ?
+                        event.output.substring(0, 200) + '...' :
+                        event.output;
+                }
+                if (event.type === 'call_start') {
+                    return 'Llamada iniciada';
+                }
+                if (event.type === 'call_end') {
+                    const duration = event.duration;
+                    const minutes = Math.floor(duration / 60);
+                    const seconds = duration % 60;
+                    return `✅ Llamada finalizada - Duración: ${minutes}:${seconds.toString().padStart(2, '0')} minutos`;
+                }
+                if (event.type === 'transcript_summary') {
+                    return '📋 Transcripción completa de la conversación';
+                }
+                return JSON.stringify(event, null, 2);
+            }
+
+            renderFunctionDetails(event) {
+                if (event.type === 'function_call' && event.params) {
+                    const params = Object.entries(event.params)
+                        .map(([key, value]) => `<strong>${key}:</strong> ${value}`)
+                        .join('<br>');
+                    return `<div class="function-details">${params}</div>`;
+                }
+                return '';
+            }
+
+            formatTranscript(event) {
+                try {
+                    // Try to parse and format the transcript JSON
+                    const transcript = typeof event.data === 'string' ?
+                        JSON.parse(event.data) : event.data;
+
+                    if (Array.isArray(transcript)) {
+                        return transcript.map(msg => {
+                            const role = msg.role === 'system' ? '📞 Sistema' : '👤 Usuario';
+                            const timestamp = msg.time ? `[${msg.time}s]` : '';
+                            return `<div style="margin-bottom: 8px;"><strong>${role}</strong> ${timestamp}<br>${msg.message}</div>`;
+                        }).join('');
+                    } else {
+                        return `<pre>${JSON.stringify(transcript, null, 2)}</pre>`;
+                    }
+                } catch (error) {
+                    // If parsing fails, show raw content
+                    return `<pre>${JSON.stringify(event, null, 2)}</pre>`;
+                }
+            }
+
+            updateStats() {
+                const activeCalls = Array.from(this.calls.values()).filter(call => call.status === 'active').length;
+                const totalCalls = this.calls.size;
+
+                document.getElementById('activeCalls').textContent = activeCalls;
+                document.getElementById('totalCalls').textContent = totalCalls;
+                document.getElementById('totalEvents').textContent = this.totalEvents;
+            }
+        }
+
+        // Initialize the monitor when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new CallMonitor();
+        });
+    </script>
+</body>
+</html>
