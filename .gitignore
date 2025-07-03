@@ -1,1 +1,5 @@
 .venv
+recordings/*.wav
+recordings/*.txt
+transcripts/
+local_index/
