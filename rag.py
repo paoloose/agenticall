@@ -4,13 +4,10 @@ from langchain_community.vectorstores import FAISS
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_core.documents import Document
 from langchain_core.messages import HumanMessage, SystemMessage
+from config import OPENAI_API_KEY
 
 import getpass
 import os
-
-OPENAI_API_KEY = ""
-if not OPENAI_API_KEY:
-  OPENAI_API_KEY = getpass.getpass("OpenAI API Key: ")
 
 #os.environ["LANGSMITH_TRACING"] = "true"
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY

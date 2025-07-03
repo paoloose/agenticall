@@ -11,7 +11,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import PromptTemplate
 
-from poc import OPENAI_API_KEY
+from config import OPENAI_API_KEY
 
 TRANSCRIPTS_DIR = "transcripts"
 REPORTS_DIR = "reports"

@@ -1,9 +1,8 @@
 import asyncio
 from openai import AsyncOpenAI
 
+from config import OPENAI_API_KEY
 from realtime import SESSION_CONFIG
-
-OPENAI_API_KEY = ""
 
 async def main():
     client = AsyncOpenAI(
