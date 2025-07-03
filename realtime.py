@@ -6,6 +6,7 @@ import socket
 import subprocess
 import threading
 import time
+import uuid
 import wave
 from datetime import datetime
 import pyaudio
@@ -187,7 +188,36 @@ ai_audio_frames = []
 recording_lock = threading.Lock()
 call_start_time = None
 
+# Transcript tracking
+transcript_messages = []
+call_id = None
+
 prompt_augmenter = RAGPromptAugmenter(data_dir='documents')
+
+# Function to add message to transcript
+def add_message_to_transcript(role, message, function_name=None, call_id=None, params=None):
+    global transcript_messages, call_start_time
+
+    # Calculate time elapsed since call start in seconds
+    elapsed_time = int((datetime.now() - call_start_time).total_seconds())
+
+    if function_name:
+        # This is a function call
+        transcript_messages.append({
+            "type": "function_call",
+            "function": function_name,
+            "call_id": call_id,
+            "params": params,
+            "time": elapsed_time
+        })
+    else:
+        # This is a regular message
+        transcript_messages.append({
+            "type": "message",
+            "role": role,
+            "message": message,
+            "time": elapsed_time
+        })
 
 # Function to clear the audio buffer
 def clear_audio_buffer():
@@ -317,10 +347,16 @@ def receive_audio_from_websocket(ws):
                 elif event_type == 'conversation.item.input_audio_transcription.completed':
                     transcript = message.get('transcript', '')
                     print(f'🐢 Human transcript: {transcript}')
+                    # Add user message to transcript
+                    if transcript:
+                        add_message_to_transcript("user", transcript)
 
                 elif event_type == 'response.audio_transcript.done':
                     transcript = message.get('transcript', '')
                     print(f'🔵 AI transcript: {transcript}')
+                    # Add system message to transcript
+                    if transcript:
+                        add_message_to_transcript("system", transcript)
 
             except Exception as e:
                 print(f'Error receiving audio: {e}')
@@ -333,11 +369,26 @@ def receive_audio_from_websocket(ws):
 # Function to handle function calls
 def handle_function_call(event_json, ws):
     try:
-        name= event_json.get("name","")
+        name = event_json.get("name", "")
         call_id = event_json.get("call_id", "")
 
         arguments = event_json.get("arguments", "{}")
         function_call_args = json.loads(arguments)
+
+        # Record function call in transcript
+        if name == "forward_call":
+            params = {
+                "specialty": function_call_args.get("specialty", ""),
+                "summary": function_call_args.get("summary", "")
+            }
+            add_message_to_transcript(None, None, name, call_id, params)
+        elif name == "ask_rag":
+            params = {
+                "question": function_call_args.get("question", "")
+            }
+            add_message_to_transcript(None, None, name, call_id, params)
+        elif name == "hang_up":
+            add_message_to_transcript(None, None, name, call_id, {})
 
         if name == "hang_up":
             # Handle hang up function call
@@ -390,6 +441,9 @@ def send_function_call_result(result, call_id, ws):
             "call_id": call_id
         }
     }
+
+    # Add function call result to transcript
+    add_message_to_transcript("system", result)
 
     # Convert the result to a JSON string and send it via WebSocket
     try:
@@ -484,11 +538,17 @@ def connect_to_openai():
 
 # Main function to start audio streams and connect to OpenAI
 def main():
-    global call_start_time
+    global call_start_time, call_id, transcript_messages
 
     # Initialize call start time for recording
     call_start_time = datetime.now()
+    # Generate a unique call ID
+    call_id = f"call_mcrouter_{call_start_time.strftime('%Y%m%d')}_{str(uuid.uuid4())[:8]}"
+    # Reset transcript messages
+    transcript_messages = []
+
     print(f'🎬 Call recording started at: {call_start_time.strftime("%Y-%m-%d %H:%M:%S")}')
+    print(f'🆔 Call ID: {call_id}')
 
     p = pyaudio.PyAudio()
 
@@ -539,12 +599,14 @@ def main():
 
 # Function to save recorded audio to WAV files
 def save_recording():
-    global user_audio_frames, ai_audio_frames, call_start_time
+    global user_audio_frames, ai_audio_frames, call_start_time, transcript_messages, call_id
 
     if not RECORDING_ENABLED or not call_start_time:
         return
 
     timestamp = call_start_time.strftime("%Y%m%d_%H%M%S")
+    call_date = call_start_time.strftime("%Y-%m-%d")
+    call_duration = int((datetime.now() - call_start_time).total_seconds())
 
     # Create recordings directory if it doesn't exist
     recordings_dir = RECORDINGS_DIR
@@ -572,7 +634,7 @@ def save_recording():
                 wf.writeframes(b''.join(ai_audio_frames))
             print(f'💾 AI audio saved to: {ai_filename}')
 
-        # Save conversation transcript if available
+        # Save conversation transcript in TXT format
         transcript_filename = os.path.join(recordings_dir, f"transcript_{timestamp}.txt")
         with open(transcript_filename, 'w') as f:
             f.write(f"Call Recording - {call_start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
@@ -583,6 +645,20 @@ def save_recording():
             f.write("Note: Audio files are saved separately. You can use audio editing software to combine them if needed.\n")
 
         print(f'📝 Recording info saved to: {transcript_filename}')
+
+        # Save JSON transcript
+        json_transcript = {
+            "id": call_id,
+            "date": call_date,
+            "duration": call_duration,
+            "messages": transcript_messages
+        }
+
+        json_transcript_filename = os.path.join(recordings_dir, f"transcript_{call_id}.json")
+        with open(json_transcript_filename, 'w', encoding='utf-8') as f:
+            json.dump(json_transcript, f, ensure_ascii=False, indent=2)
+
+        print(f'📝 JSON transcript saved to: {json_transcript_filename}')
 
 
 if __name__ == '__main__':
