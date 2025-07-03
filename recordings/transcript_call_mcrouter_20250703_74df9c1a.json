@@ -1,0 +1,123 @@
+{
+  "id": "call_mcrouter_20250703_74df9c1a",
+  "date": "2025-07-03",
+  "duration": 119,
+  "messages": [
+    {
+      "type": "message",
+      "role": "system",
+      "message": "Hola, gracias por comunicarte con el servicio de atención al cliente de McRouter. ¿En qué puedo ayudarte el día de hoy?",
+      "context_id": "call_mcrouter_20250703_74df9c1a",
+      "time": 3
+    },
+    {
+      "type": "message",
+      "role": "user",
+      "message": "Hola, me gustaría información sobre planes para hogar.",
+      "context_id": "call_mcrouter_20250703_74df9c1a",
+      "time": 17
+    },
+    {
+      "type": "message",
+      "role": "system",
+      "message": "Claro, puedo ayudarte con eso. ¿Tienes algún requerimiento específico en cuanto a velocidad o presupuesto? Así te doy la información más adecuada.",
+      "context_id": "call_mcrouter_20250703_74df9c1a",
+      "time": 19
+    },
+    {
+      "type": "message",
+      "role": "user",
+      "message": "Mi único requerimiento es que sea un plan gamer, por favor.",
+      "context_id": "call_mcrouter_20250703_74df9c1a",
+      "time": 33
+    },
+    {
+      "type": "function_call",
+      "function": "ask_rag",
+      "call_id": "call_xHygM0reKaKNfNBD",
+      "context_id": "call_mcrouter_20250703_74df9c1a",
+      "params": {
+        "question": "¿Cuáles son los planes para hogar especialmente diseñados para gamers?"
+      },
+      "time": 33
+    },
+    {
+      "type": "function_call_output",
+      "output": "Use the following pieces of context to answer the question at the end.\nIf you don't know the answer, just say that you don't know, don't try to make up an answer.\n\nCloud backup 100GB por 6 meses\nEquipamiento incluido\nRouter WiFi 6 (802.11ax) tri-band de alta gama\nRepetidor WiFi adicional para mayor cobertura\nCable de red Ethernet 5m Cat 6\nInstalación, configuración y optimización gratuita\nSoporte técnico presencial ilimitado primer año\nPerfil de cliente recomendado\nDiseñado para familias grandes (5+ integrantes) o hogares con alta demanda tecnológica. Ideal para\nmúltiples streams 4K simultáneos, gaming competitivo, trabajo remoto profesional, dispositivos IoT y\nsmart home. Perfecto para usuarios power que requieren rendimiento constante.\nVelocidad máxima teórica: 200 Mbps\nPlan Gamer Pro\nVelocidad: 300 Mbps de bajada / 150 Mbps de subida\nDatos: Navegación ilimitada\nPrecio: S/. 229.90 mensual\nCaracterísticas del servicio\nConexión por fibra óptica FTTH premium\nIP fija incluida\nLatencia ultra baja optimizada para gaming\nSoporte técnico 24/7 especializado en gaming\nVelocidad garantizada del 95%\nQoS avanzado para priorización de tráfico\nMcRouter Gaming Suite incluida\nDNS personalizado para gaming\nEquipamiento incluido\nRouter Gaming WiFi 6E (6 GHz) con antenas externas\nSwitch Gigabit 8 puertos\n\nCable de red Ethernet 10m Cat 6A\nPowerline adapter kit\nInstalación y calibración gaming gratuita\nConfiguración personalizada de QoS\nPerfil de cliente recomendado\nEspecíficamente desarrollado para gamers serios, streamers y creadores de contenido. Optimizado para\ngaming competitivo online, streaming en vivo, descargas de juegos grandes y actividades que requieren\nlatencia mínima. Ideal para usuarios que monetizan su conexión a internet.\nVelocidad máxima teórica: 300 Mbps\nPlan Ultra Hogar\nVelocidad: 500 Mbps de bajada / 250 Mbps de subida\nDatos: Navegación ilimitada\nPrecio: S/. 299.90 mensual\nCaracterísticas del servicio\nConexión por fibra óptica FTTH empresarial adaptada al hogar\nIP fija incluida + IP fija adicional opcional\nSLA del 99.5% de disponibilidad\nSoporte técnico 24/7 prioritario con ingeniero asignado\nVelocidad garantizada del 98%\nAncho de banda dedicado\nMcRouter Security Suite empresarial\nBackup de conectividad 4G incluido\nMonitoreo proactivo de red\nEquipamiento incluido\nSistema mesh WiFi 6E profesional (3 nodos)\nRouter empresarial con funciones avanzadas\nSwitch PoE+ 16 puertos\nUPS para equipamiento crítico\nCableado estructurado hasta 8 puntos\n\nCaracterísticas del servicio\nConexión por fibra óptica FTTH\nIP dinámica incluida\nSoporte técnico 24/7 multicanal\nVelocidad garantizada del 85%\nWiFi de doble banda incluido\nAntivirus básico por 3 meses\nEquipamiento incluido\nMódem Router WiFi 802.11ac dual band (2.4 GHz y 5 GHz)\nCable de red Ethernet 3m\nInstalación y configuración gratuita\nSoporte técnico presencial (primera visita sin costo)\nPerfil de cliente recomendado\nPerfecto para familias de 3-4 integrantes que consumen contenido multimedia regularmente. Soporta\nstreaming en HD simultáneo, videollamadas de trabajo, gaming casual y múltiples dispositivos\nconectados. Ideal para hogares con trabajo remoto ocasional.\nVelocidad máxima teórica: 100 Mbps\nPlan Familia Conectada\nVelocidad: 200 Mbps de bajada / 100 Mbps de subida\nDatos: Navegación ilimitada\nPrecio: S/. 179.90 mensual\nCaracterísticas del servicio\nConexión por fibra óptica FTTH de alta capacidad\nIP dinámica incluida + opción IP fija disponible\nSoporte técnico 24/7 multicanal prioritario\nVelocidad garantizada del 90%\nWiFi 6 de última generación\nMcRouter Shield (seguridad avanzada) incluido\n\nInstalación y configuración por ingeniero certificado\nMantenimiento preventivo trimestral\nPerfil de cliente recomendado\nDestinado a hogares que operan como oficinas profesionales, emprendedores digitales, familias con\nmúltiples profesionales en trabajo remoto y usuarios que requieren conectividad de nivel empresarial.\nIdeal para videoconferencias críticas, transferencias de archivos grandes y aplicaciones mission-critical.\nVelocidad máxima teórica: 500 Mbps\nInformación General\nCondiciones de servicio\nTodos los precios incluyen IGV\nContrato mínimo de 12 meses\nInstalación gratuita en zona de cobertura\nGarantía de equipos por 24 meses\nDerecho de retracto 7 días calendario\nCobertura\nMcRouter cuenta con cobertura en Lima Metropolitana, Callao, Arequipa, Trujillo, Chiclayo, Piura, Cusco,\nHuancayo e Ica.\nContacto\nTeléfono: (01) 640-5000\nWhatsApp: 999-888-777\nEmail: ventas@mcrouter.pe\nWeb: www.mcrouter.pe\nDocumento interno - Planes vigentes desde enero 2025\nÚltima actualización: 02 de julio de 2025\n\nQuestion: ¿Cuáles son los planes para hogar especialmente diseñados para gamers?\nAnswer:",
+      "call_id": "call_xHygM0reKaKNfNBD",
+      "context_id": "call_mcrouter_20250703_74df9c1a",
+      "time": 37
+    },
+    {
+      "type": "message",
+      "role": "system",
+      "message": "Tenemos un Plan Gamer Pro diseñado especialmente para gamers. Ofrece una velocidad de 300 Mbps de bajada y 150 Mbps de subida. Tiene latencia ultra baja optimizada para gaming y una velocidad garantizada del 95%. Además, incluye un router gaming WiFi 6E y soporte técnico 24/7 especializado. El costo mensual es S/. 229.90. ¿Te gustaría saber más detalles sobre la instalación o algún otro aspecto?",
+      "context_id": "call_mcrouter_20250703_74df9c1a",
+      "time": 49
+    },
+    {
+      "type": "function_call",
+      "function": "forward_call",
+      "call_id": "call_3xcSIl8hTZPFFdui",
+      "context_id": "call_mcrouter_20250703_74df9c1a",
+      "params": {
+        "specialty": "sales",
+        "summary": "Usuario interesado en contratar el Plan Gamer Pro para hogar y desea proceder con la compra."
+      },
+      "time": 84
+    },
+    {
+      "type": "function_call_output",
+      "output": "Call forwarded to sales with summary: Usuario interesado en contratar el Plan Gamer Pro para hogar y desea proceder con la compra.",
+      "call_id": "call_3xcSIl8hTZPFFdui",
+      "context_id": "call_mcrouter_20250703_74df9c1a",
+      "time": 84
+    },
+    {
+      "type": "message",
+      "role": "user",
+      "message": "Me gustaría que por favor me pases la llamada del equipo de ventas porque voy a hacer la compra.",
+      "context_id": "call_mcrouter_20250703_74df9c1a",
+      "time": 84
+    },
+    {
+      "type": "message",
+      "role": "system",
+      "message": "Voy a transferirte con el equipo de ventas para que puedan ayudarte a finalizar la compra. ¿Hay algún otro detalle que quieras mencionarles antes de la transferencia? Mientras tanto, espera un momento que en breve te atenderán.",
+      "context_id": "call_mcrouter_20250703_74df9c1a",
+      "time": 90
+    },
+    {
+      "type": "message",
+      "role": "user",
+      "message": "Sí, soy del distrito de Ventanilla.",
+      "context_id": "call_mcrouter_20250703_74df9c1a",
+      "time": 109
+    },
+    {
+      "type": "function_call",
+      "function": "forward_call",
+      "call_id": "call_B4VbLC7C4gGJfHlV",
+      "context_id": "call_mcrouter_20250703_74df9c1a",
+      "params": {
+        "specialty": "sales",
+        "summary": "El usuario es del distrito de Ventanilla y está interesado en el Plan Gamer Pro para hogar."
+      },
+      "time": 109
+    },
+    {
+      "type": "function_call_output",
+      "output": "Call forwarded to sales with summary: El usuario es del distrito de Ventanilla y está interesado en el Plan Gamer Pro para hogar.",
+      "call_id": "call_B4VbLC7C4gGJfHlV",
+      "context_id": "call_mcrouter_20250703_74df9c1a",
+      "time": 109
+    },
+    {
+      "type": "message",
+      "role": "system",
+      "message": "Perfecto, he añadido esa información para que el equipo de ventas lo tenga en cuenta. Ya te van a atender en un momento. Si tienes alguna otra consulta mientras esperamos, dime con confianza.",
+      "context_id": "call_mcrouter_20250703_74df9c1a",
+      "time": 113
+    }
+  ]
+}
