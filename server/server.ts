@@ -4,11 +4,19 @@ interface WebSocketData {
   id: string;
 }
 
+// Paths to SSL certificate files - update these paths to your actual certificate locations
+const CERT_PATH = "/etc/letsencrypt/live/mcrouter.paoloose.site/fullchain.pem";
+const KEY_PATH = "/etc/letsencrypt/live/mcrouter.paoloose.site/privkey.pem";
+
 const clients = new Set<ServerWebSocket<WebSocketData>>();
 
 const server = Bun.serve({
   port: 5060,
   hostname: "0.0.0.0",
+  tls: {
+    key: Bun.file(KEY_PATH),
+    cert: Bun.file(CERT_PATH),
+  },
   fetch(req, server) {
     // Upgrade HTTP connection to WebSocket
     const success = server.upgrade(req, {
@@ -53,6 +61,8 @@ const server = Bun.serve({
   }
 });
 
-console.log(`WebSocket broadcast server running on port ${server.port}`);
-console.log(`Connect to: ws://0.0.0.0:${server.port}`);
-console.log(`For local connections use: ws://localhost:${server.port}`);
+console.log(`WebSocket broadcast server running on port ${server.port} with HTTPS`);
+console.log(`Connect to: wss://0.0.0.0:${server.port}`);
+console.log(`For local connections use: wss://localhost:${server.port}`);
+console.log(`Certificate path: ${CERT_PATH}`);
+console.log(`Private key path: ${KEY_PATH}`);
