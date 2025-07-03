@@ -100,7 +100,11 @@ Today is {today_formatted}.
   - When you are waiting for the forward_answer, ask for further information.
   - Any information that you consider useful should make another forward_call with only that.
   - We offer home and business plans. Ask the user if not sure.
-  - We have scheduled outages, you can consult them using the RAG.
+  - Do not ask for client ID, this is a demo.
+  - We have a comprehensive list of service cut-off policies, you can consult them using ask_rag.
+  - We have internal documentation for home and business plans, you can consult them using ask_rag.
+  - We have a FAQ for business-specific questions, you can consult them using ask_rag.
+  - We have scheduled outages, you can consult them using ask_rag.
   - Adapt to user language, starting with Spanish.
 </strategy>
 """
@@ -692,6 +696,9 @@ def main():
 
         while mic_stream.is_active() and speaker_stream.is_active():
             time.sleep(0.1)
+            if stop_event.is_set():
+                print('🔴 Stop event set, exiting main loop.')
+                break
 
     except KeyboardInterrupt:
         print('Gracefully shutting down...')
