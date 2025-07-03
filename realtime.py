@@ -197,10 +197,10 @@ prompt_augmenter = RAGPromptAugmenter(data_dir='documents')
 # Function to add message to transcript
 def add_message_to_transcript(role, message, function_name=None, call_id=None, params=None):
     global transcript_messages, call_start_time
-
+    
     # Calculate time elapsed since call start in seconds
     elapsed_time = int((datetime.now() - call_start_time).total_seconds())
-
+    
     if function_name:
         # This is a function call
         transcript_messages.append({
@@ -546,7 +546,7 @@ def main():
     call_id = f"call_mcrouter_{call_start_time.strftime('%Y%m%d')}_{str(uuid.uuid4())[:8]}"
     # Reset transcript messages
     transcript_messages = []
-
+    
     print(f'🎬 Call recording started at: {call_start_time.strftime("%Y-%m-%d %H:%M:%S")}')
     print(f'🆔 Call ID: {call_id}')
 
@@ -645,7 +645,7 @@ def save_recording():
             f.write("Note: Audio files are saved separately. You can use audio editing software to combine them if needed.\n")
 
         print(f'📝 Recording info saved to: {transcript_filename}')
-
+        
         # Save JSON transcript
         json_transcript = {
             "id": call_id,
@@ -653,11 +653,11 @@ def save_recording():
             "duration": call_duration,
             "messages": transcript_messages
         }
-
+        
         json_transcript_filename = os.path.join(recordings_dir, f"transcript_{call_id}.json")
         with open(json_transcript_filename, 'w', encoding='utf-8') as f:
             json.dump(json_transcript, f, ensure_ascii=False, indent=2)
-
+            
         print(f'📝 JSON transcript saved to: {json_transcript_filename}')
 
 
