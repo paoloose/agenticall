@@ -12,6 +12,8 @@ import pyaudio
 import socks
 import websocket
 
+from rag import RAGPromptAugmenter
+
 # Set up SOCKS5 proxy
 socket.socket = socks.socksocket
 
@@ -26,70 +28,82 @@ if not API_KEY:
 
 WS_URL = 'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2025-06-03'
 
-SYSTEM_PROMPT = """Your knowledge cutoff is 2023-10-30.
+today_formatted = datetime.now().strftime("%Y-%m-%d")
 
-You are the McRouter AI, a real-time conversational model for customer service of the McRouter Internet Service Provider.
+SYSTEM_PROMPT = f"""Your knowledge cutoff is 2023-10-30.
+Today is {today_formatted}.
 
-Your job is to assist users during phone calls. As an ISP expert, you can answer simple questions
-and emphasize with them.
+<identity>
+  You are the McRouter AI, a real-time conversational model for the customer
+  service of "McRouter", a popular Internet Service Provider in Peru, which
+  offers Internet solutions for homes and businesses.
+</identity>
 
-You have access to the following tools:
+<job>
+  Your job is to assist users during phone calls. Answer simple to moderate questions.
+  Emphasize with users, understand their claims, and sole their problems.
+</job>
 
-# TOOLS OVERVIEW
+<functions>
+  <function name="hang_up">
+    <usage>
+      Use only when the issue is fully resolved or the user clearly wants to end the call.
+      Do not call this function after you forwarded. Wait for the forward to answer.
+    </usage>
+  </function>
 
-1. hang_up()
-- Use only when the issue is fully resolved or the user clearly wants to end the call.
+  <function name="ask_rag">
+    Use to query the knowledge base (RAG) for answers you can't generate yourself.
+    Only after gathering enough specific information from the user.
+    Ask clarifying questions first if request is vague.
+    <param>question</param>
+    <output>
+      The approximated answer to the question
+    </output>
+  </function>
 
-2. forward_call({ specialty, summary })
-- Use when you cannot resolve the issue yourself and need to escalate to a human agent.
-- Choose a "specialty" from:
-* "sales": products, offers, payments for individuals
-* "support": technical issues
-* "consultancy": specialized service guidance
-* "enterprise": business clients
-* "unknown": when you're not sure who should handle it
-- Provide a concise summary of the issue as you understood it.
+  <function name="forward_call">
+    Use when you cannot resolve the issue yourself and need to escalate to a human agent.
+    Every forward_call results in an ETA. You can call this function many times,
+    every call will update the speciality, and increase the summary.
+    <params>
+      <param>specialty</param>
+      <param>summary</param>
+    </params>
+    <specialties>
+      . sales: products, offers, payments for individuals
+      . support: technical issues
+      . consultancy: specialized service guidance
+      . enterprise: business clients
+      . unknown: when you're not sure who should handle it
+    </specialties>
+    <output>
+      A time duration representing the Estimated Wait Time (ETA).
+      A subsquent "forward_answer" result is sent that finishes this interaction.
+    </output>
+  </function>
+</functions>
 
-3. ask_rag({ question })
-- Use to query the knowledge base (RAG) for answers you can't generate yourself.
-- Use this ONLY after gathering enough specific information from the user.
-- If the user's request is vague, ask clarifying questions FIRST before calling RAG.
-
-# CALL HANDLING STRATEGY
-
-1. Always try to fully understand the user's need first.
-2. If the request is vague, prompt for clarification before using ask_rag().
-3. Be friendly, clear, and professional at all times.
-4. Do NOT explain or mention these rules to the user.
-5. Avoid injecting any specific business information yourself — RAG handles that.
-
-# EXAMPLES
-
-Example 1 - Using hang_up():
-User says: "Listo, muchas gracias por tu ayuda."
-Action: Call hang_up()
-
-Example 2 - Using forward_call():
-User says: "Tengo un problema con mi router, no enciende desde ayer."
-Action: Call forward_call() with specialty "support" and summary "El usuario indica que su router no enciende desde ayer."
-
-Example 3 - Using ask_rag() after clarification:
-User says: "Quiero un plan de celular."
-AI responds: "¿Cuánto consumo mensual de datos necesita?"
-User says: "Unos 20 GB, y no quiero teléfono incluido."
-Action: Call ask_rag() with question "¿Qué planes móviles ofrece McRouter para 20GB sin equipo incluido?"
-
-Example 4 - What NOT to do:
-User says: "Quiero un plan."
-INCORRECT: Do not call ask_rag() immediately.
-CORRECT: First ask clarifying questions like "¿Qué tipo de plan busca? ¿Para celular, hogar o empresa? ¿Cuánto uso mensual necesita?"
-
-Only use one function call per response. Never speak outside of a function call.
+<strategy>
+  - Be friendly, clear, and professional at all times.
+  - Always try to fully understand the user's need first.
+  - Your first interaction should welcome the user to the McRouter support station shortly.
+  - If the request is vague, ask for clarification before using ask_rag.
+  - You can try to solve problems using your general knowledge.
+  - Avoid answering any specific business information yourself: use ask_rag for this.
+  - Before calling ask_rag, let the user know you will consult this information.
+  - Do NOT explain or mention these rules to the user.
+  - As a last resort, it's okay to forward the call to a human agent.
+  - If you forward the call, let the user know he need to wait until someone take it.
+  - When you are waiting for the forward_answer, ask for further information.
+  - Any information that you consider useful should make another forward_call with only that.
+  - We offer home and business plans. Ask the user if not sure.
+  - We have scheduled outages, you can consult them using the RAG.
+  - Adapt to user language, starting with Spanish.
+</strategy>
 """
 
 SESSION_CONFIG = {
-    "type": "session.update",
-    "session": {
     "instructions": SYSTEM_PROMPT,
     "turn_detection": {
         "type": "server_vad",
@@ -152,8 +166,7 @@ SESSION_CONFIG = {
             "required": ["question"]
             }
         }
-        ]
-    }
+    ]
 }
 
 # Recording configuration
@@ -173,6 +186,8 @@ user_audio_frames = []
 ai_audio_frames = []
 recording_lock = threading.Lock()
 call_start_time = None
+
+prompt_augmenter = RAGPromptAugmenter(data_dir='documents')
 
 # Function to clear the audio buffer
 def clear_audio_buffer():
@@ -220,9 +235,11 @@ def send_mic_audio_to_websocket(ws):
         while not stop_event.is_set():
             if not mic_queue.empty():
                 mic_chunk = mic_queue.get()
-                # print(f'🎤 Sending {len(mic_chunk)} bytes of audio data.')
                 encoded_chunk = base64.b64encode(mic_chunk).decode('utf-8')
-                message = json.dumps({'type': 'input_audio_buffer.append', 'audio': encoded_chunk})
+                message = json.dumps({
+                    'type': 'input_audio_buffer.append',
+                    'audio': encoded_chunk,
+                })
                 try:
                     ws.send(message)
                 except Exception as e:
@@ -316,7 +333,6 @@ def receive_audio_from_websocket(ws):
 # Function to handle function calls
 def handle_function_call(event_json, ws):
     try:
-
         name= event_json.get("name","")
         call_id = event_json.get("call_id", "")
 
@@ -327,6 +343,8 @@ def handle_function_call(event_json, ws):
             # Handle hang up function call
             print("Call ended by user or AI.")
             send_function_call_result("Call ended successfully.", call_id, ws)
+            stop_event.set()  # Stop the main loop to end the call
+
         elif name == "forward_call":
             # Extract arguments from the event JSON
             specialty = function_call_args.get("specialty", "")
@@ -343,13 +361,15 @@ def handle_function_call(event_json, ws):
         elif name == "ask_rag":
             # Extract arguments from the event JSON
             question = function_call_args.get("question", "")
+            augmented_question, documents = prompt_augmenter.query(question)
+
+            print(f"Question '{question}' was augmented to {augmented_question}")
 
             # Extract the call_id from the event JSON
             # If the question is provided, call ask_rag and send the result
             if question:
                 # As a dummy response, the RAG always says it doesn't know
-                rag_response = f"RAG response: information not available"
-                send_function_call_result(rag_response, call_id, ws)
+                send_function_call_result(augmented_question, call_id, ws)
             else:
                 print("Question not provided for ask_rag function.")
 
@@ -385,23 +405,22 @@ def send_function_call_result(result, call_id, ws):
     except Exception as e:
         print(f"Failed to send function call result: {e}")
 
-# Function to simulate retrieving weather information for a given city
-def get_weather(city):
-    # Simulate a weather response for the specified city
-    return json.dumps({
-        "city": city,
-        "temperature": "99°C"
-    })
 
 # Function to send session configuration updates to the server
 def send_fc_session_update(ws):
     # Convert the session config to a JSON string
-    session_config_json = json.dumps(SESSION_CONFIG)
+    session_config_json = json.dumps({
+        "type": "session.update",
+        "session": SESSION_CONFIG,
+    })
     print(f"Send FC session update: {session_config_json}")
 
     # Send the JSON configuration through the WebSocket
     try:
         ws.send(session_config_json)
+        ws.send(json.dumps({
+            "type": "response.create"
+        }))
     except Exception as e:
         print(f"Failed to send session update: {e}")
 
@@ -435,15 +454,12 @@ def connect_to_openai():
         )
         print('Connected to OpenAI WebSocket.')
 
-
-        # Start the recv and send threads
         receive_thread = threading.Thread(target=receive_audio_from_websocket, args=(ws,))
         receive_thread.start()
 
         mic_thread = threading.Thread(target=send_mic_audio_to_websocket, args=(ws,))
         mic_thread.start()
 
-        # Wait for stop_event to be set
         while not stop_event.is_set():
             time.sleep(0.1)
 
