@@ -1,6 +1,8 @@
 import asyncio
 from openai import AsyncOpenAI
 
+from realtime import SESSION_CONFIG
+
 OPENAI_API_KEY = ""
 
 async def main():
@@ -9,7 +11,7 @@ async def main():
     )
 
     async with client.beta.realtime.connect(model="gpt-4o-realtime-preview") as connection:
-        await connection.session.update(session={'modalities': ['text']})
+        await connection.session.update(session=SESSION_CONFIG)
 
         await connection.conversation.item.create(
             item={
