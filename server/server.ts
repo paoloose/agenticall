@@ -11,7 +11,7 @@ const KEY_PATH = "/etc/letsencrypt/live/mcrouter.paoloose.site/privkey.pem";
 const clients = new Set<ServerWebSocket<WebSocketData>>();
 
 const server = Bun.serve({
-  port: 5060,
+  port: 6060,
   hostname: "0.0.0.0",
   tls: {
     key: Bun.file(KEY_PATH),
