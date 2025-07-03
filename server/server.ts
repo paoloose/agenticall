@@ -8,6 +8,7 @@ const clients = new Set<ServerWebSocket<WebSocketData>>();
 
 const server = Bun.serve({
   port: 5060,
+  hostname: "0.0.0.0",
   fetch(req, server) {
     // Upgrade HTTP connection to WebSocket
     const success = server.upgrade(req, {
@@ -53,4 +54,5 @@ const server = Bun.serve({
 });
 
 console.log(`WebSocket broadcast server running on port ${server.port}`);
-console.log(`Connect to: ws://localhost:${server.port}`);
+console.log(`Connect to: ws://0.0.0.0:${server.port}`);
+console.log(`For local connections use: ws://localhost:${server.port}`);
